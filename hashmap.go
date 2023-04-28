@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: 0BSD
 package sx
 
 var _ Container = hashMap[string, int]{}
@@ -83,14 +82,14 @@ func (m hashMap[K, V]) NewIterator() Iterator[K, V] {
 		return it
 	}
 	it.mp = &m
-	it.keys = NewFixedSizeArray[K](len(m.data))
+	it.keys = NewArray[K](len(m.data))
 	it.currentKeyIndex = 0
 	var i = 0
 	for k := range m.data {
-		it.keys.Put(i, k)
+		it.keys.Push(k)
 		i++
 	}
-	it.current.Key = it.keys.Get(0).ValueOrDefault()
+	it.current.Key = it.keys.Get(0).ValueOrInit()
 	it.current.Value = it.mp.GetOrDefault(it.current.Key)
 	return it
 }
@@ -118,10 +117,10 @@ func (it *HashMapIterator[K, V]) Next() {
 	var nextKey = it.keys.Get(it.currentKeyIndex)
 	// if the nextKey is not valid, it has been removed during iteration
 	// this is supported - so we try and find the next valid key, until our key-array runs out of items
-	for !nextKey.IsEmpty() && !it.mp.Has(nextKey.Value()) && it.currentKeyIndex < it.keys.Length() {
+	for nextKey.Ok() && it.currentKeyIndex < it.keys.Length() && !it.mp.Has(nextKey.Value()) {
 		it.currentKeyIndex++
 		nextKey = it.keys.Get(it.currentKeyIndex)
 	}
-	it.current.Key = nextKey.ValueOrDefault()
+	it.current.Key = nextKey.ValueOrInit()
 	it.current.Value = it.mp.GetOrDefault(it.current.Key)
 }

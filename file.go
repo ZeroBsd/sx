@@ -5,104 +5,182 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
-type File string
+const FilePathSeparator = string(os.PathSeparator)
+const RunningOnWindows = runtime.GOOS == "windows"
 
-func NewFile(fullOrRelativePathAndFilename string) File {
-	return File(fullOrRelativePathAndFilename)
+var _ Iterable[int, string] = NewDir()
+
+func DirRoot() Dir {
+	var root = "/"
+	if RunningOnWindows {
+		root = "C:\\"
+	}
+	return NewDirFromString(root)
 }
 
-func NewFileUserDir() File {
+func DirTemp() Dir {
+	return NewDirFromString(os.TempDir()).normalize()
+}
+
+func DirUserHome() Result[Dir] {
 	var userHomeDir, err = os.UserHomeDir()
-	ThrowIf(err != nil, ReflectFunctionName(), err.Error())
-	return NewFile(userHomeDir)
-}
-
-func (f File) uri() string {
-	return string(f)
-}
-
-func (f File) ReadAllBytes() []byte {
-	var content, err = os.ReadFile(f.uri())
 	if err != nil {
-		return []byte{}
+		return NewResultFromError[Dir](err)
 	}
-	return content
+	return NewResultFrom(NewDirFromString(userHomeDir))
 }
 
-// Reads all the text from a file, newlines are always '\n'
-func (f File) ReadAllText() Optional[string] {
-	var content, err = os.ReadFile(f.uri())
+// Returns a Dir from a string, creates a new directory if needed (including all parents)
+func MkDirAndPath(fullPathString string) Result[Dir] {
+	var err = os.MkdirAll(fullPathString, 700)
 	if err != nil {
-		return NewOptional[string]()
+		return NewResultFromError[Dir](err)
 	}
-	var text = strings.ReplaceAll(string(content), "\r\n", "\n")
-	return NewOptionalFrom(text)
+	return NewResultFrom(NewDirFromString(fullPathString))
 }
 
-func (f File) WriteAllText(text string) {
-	var err = os.WriteFile(f.uri(), []byte(text), fs.ModePerm)
-	ThrowIf(err != nil, "file::WriteAllText", "Fatal error: could not write file '"+f.uri()+"'")
+type Dir string
+
+// Create a Dir from a path/string
+// Directories always end with the FilePathSeparator
+func NewDirFromString(path string) Dir {
+	path, _ = strings.CutPrefix(path, "file://")
+	if path == "" {
+		return DirRoot()
+	}
+	if RunningOnWindows {
+		path = strings.ReplaceAll(path, `/`, `\`)
+	}
+	return Dir(path).normalize()
 }
 
-func (f File) Cd(name string) File {
-	var newFileName = f.uri() + string(filepath.Separator) + name
-	return NewFile(newFileName)
+func (dir Dir) normalize() Dir {
+	var path = string(dir)
+	if !strings.HasSuffix(path, FilePathSeparator) {
+		path = StrCat(path, FilePathSeparator)
+	}
+	return Dir(path)
 }
 
-func (f File) ListDir() Array[File] {
-	var d = NewArray[File]()
-	var files, err = os.ReadDir(f.uri())
+// Create a Dir from its parts
+// It is assumed that there are no FilePathSeparators within the parts
+// Directories always end with the FilePathSeparator
+func NewDir(pathParts ...string) Dir {
+	if len(pathParts) == 0 {
+		return DirRoot()
+	}
+	var path = StrJoin(FilePathSeparator, pathParts...)
+	return NewDirFromString(path)
+}
+
+func (dir Dir) String() string {
+	return string(dir)
+}
+
+func (dir Dir) Exists() bool {
+	fileInfo, err := os.Stat(dir.String())
+	return err == nil && fileInfo.Mode().IsDir()
+}
+
+func (dir Dir) IsFile(fileName string) bool {
+	var fullName = StrCat(dir.String(), fileName)
+	fileInfo, err := os.Stat(fullName)
+	return err == nil && fileInfo.Mode().IsRegular()
+}
+
+func (dir Dir) IsDirectory(fileName string) bool {
+	var fullName = StrCat(dir.String(), fileName)
+	fileInfo, err := os.Stat(fullName)
+	return err == nil && fileInfo.Mode().IsDir()
+}
+
+func (dir Dir) IsSymlink(fileName string) bool {
+	var fullName = StrCat(dir.String(), fileName)
+	fileInfo, err := os.Stat(fullName)
+	return err == nil && (fileInfo.Mode()&os.ModeSymlink) != 0
+}
+
+func (dir Dir) CreateDir(folderName string) Result[Dir] {
+	var newDirName = StrCat(dir.String(), folderName)
+	var newDir = NewDirFromString(newDirName).normalize()
+	var err = os.MkdirAll(newDir.String(), 700)
 	if err != nil {
-		return d
+		return NewResultFromError[Dir](err)
 	}
-	for _, f := range files {
-		f.Name()
-	}
-	return d
+	return NewResultFrom(newDir)
 }
 
-func (f File) Exists() bool {
-	_, err := os.Stat(f.uri())
-	return err == nil
-}
-
-func (f File) IsDirectory() bool {
-	r, err := os.Stat(f.uri())
-	return err == nil && r.IsDir()
-}
-
-func (f File) IsSymlink() bool {
-	fd, err := os.Lstat(f.uri())
-	return err == nil && (fd.Mode()&os.ModeSymlink) != 0
-}
-
-func (f File) Absolute() Result[File] {
-	r, err := filepath.Abs(f.uri())
+func (dir Dir) ReadAllBytes(fromFileName string) Result[[]byte] {
+	var content, err = os.ReadFile(StrCat(dir.String(), fromFileName))
 	if err != nil {
-		return NewResultError[File](err.Error())
+		return NewResultFromError[[]byte](err)
 	}
-	return NewResultFrom(NewFile(r))
+	return NewResultFrom(content)
 }
 
-func (f File) Extension() File {
-	return NewFile(filepath.Ext(f.uri()))
-}
-
-func (f File) Basename() File {
-	return NewFile(filepath.Base(f.uri()))
-}
-
-func (f File) Canonical() File {
-	return NewFile(filepath.Clean(f.uri()))
-}
-
-func (f File) RelativeTo(other File) Result[File] {
-	r, err := filepath.Rel(f.uri(), other.uri())
-	if err != nil {
-		return NewResultError[File](err.Error())
+// Reads all the text from a file, newlines are always converted to '\n'
+func (dir Dir) ReadAllText(fromFileName string) Result[string] {
+	var bytes = dir.ReadAllBytes(fromFileName)
+	if !bytes.Ok() {
+		return NewResultError[string](bytes.Error())
 	}
-	return NewResultFrom(NewFile(r))
+	var text = string(bytes.Value())
+	if RunningOnWindows {
+		text = strings.ReplaceAll(text, "\r\n", "\n")
+	}
+	return NewResultFrom(text)
+}
+
+// Write all the text to a file, no modifications
+func (dir Dir) WriteAllText(toFileName string, text string) error {
+	var fullFileName = StrCat(dir.String(), toFileName)
+	return os.WriteFile(fullFileName, []byte(text), fs.ModePerm)
+}
+
+// Descends into a folder. Folder must exist.
+func (dir Dir) Cd(folderName string) Result[Dir] {
+	if !dir.IsDirectory(folderName) {
+		return NewResultError[Dir](ReflectFunctionName(), ": cannot change directory, because directory '", folderName, "' does not exist in '", dir.String(), "'")
+	}
+	var newDirName = StrCat(dir.String(), folderName)
+	var newDir = NewDirFromString(newDirName).normalize()
+	return NewResultFrom(newDir)
+}
+
+func (dir Dir) HasParent() bool {
+	var parent = dir.Parent()
+	return parent.Ok()
+}
+func (dir Dir) Parent() Result[Dir] {
+	var parentDirString = filepath.Dir(dir.String())
+	var parent = NewDirFromString(parentDirString)
+	return NewResultFrom(parent)
+}
+
+func FileExtension(fileNameOrPath string) string {
+	return filepath.Ext(fileNameOrPath)
+}
+
+func FileBaseName(fileNameOrPath string) string {
+	return filepath.Base(fileNameOrPath)
+}
+
+func FileWithoutExtension(fileNameOrPath string) string {
+	fileNameOrPath = FileBaseName(fileNameOrPath)
+	var extLen = len(FileExtension(fileNameOrPath))
+	var nameWithoutExtension = fileNameOrPath[0 : len(fileNameOrPath)-extLen]
+	return nameWithoutExtension
+}
+
+func (dir Dir) NewIterator() Iterator[int, string] {
+	var entries = NewArray[string]()
+	var files, _ = os.ReadDir(dir.String())
+	for _, file := range files {
+		entries.Push(file.Name())
+	}
+	return entries.NewIterator()
 }

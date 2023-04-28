@@ -19,11 +19,9 @@ func (v array[V]) Has(index int) bool { return index < v.Length() }
 func (v *array[V]) Push(value ...V)   { v.slice = append(v.slice, value...) }
 func (v *array[V]) PushAll(arr Array[V]) {
 	if cap(v.slice) == 0 {
-		v = &array[V]{slice: make([]V, 0, arr.Length())}
+		*v = array[V]{slice: make([]V, 0, arr.Length())}
 	}
-	for it := arr.NewIterator(); it.Ok(); it.Next() {
-		v.slice = append(v.slice, it.Value())
-	}
+	v.Push(arr.Slice()...)
 }
 
 func (v array[V]) Peek() Result[V] {
@@ -35,7 +33,7 @@ func (v array[V]) Peek() Result[V] {
 
 func (v *array[V]) Pop() Result[V] {
 	var temp = v.Peek()
-	if !temp.IsEmpty() {
+	if temp.Ok() {
 		v.slice = v.slice[:v.Length()-1]
 	}
 	return temp
@@ -69,7 +67,7 @@ func (v *array[V]) Drop(key int) bool {
 	} else if key == v.Length()-1 {
 		v.slice = v.slice[:v.Length()-1]
 	} else if key < v.Length()-1 {
-		v.slice = append(v.slice[0:int(key)], v.slice[0:int(key+1)]...)
+		v.slice = append(v.slice[0:int(key)], v.slice[int(key+1):]...)
 	} else {
 		return false
 	}

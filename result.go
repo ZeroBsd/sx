@@ -3,23 +3,18 @@ package sx
 
 import "errors"
 
-var _ Container = &Result[int]{}
-var _ Container = NewResultFrom(1)
-var _ Iterable[int, int] = &Result[int]{}
-var _ Iterable[int, int] = NewResultFrom(1)
-
 func NewResultFrom[V any](value V) Result[V] {
-	var opt = Result[V]{
-		data: value,
-		err:  nil,
-	}
+	var opt = Result[V]{data: value, err: nil}
 	return opt
 }
 
-func NewResultError[V any](errorMessage string) Result[V] {
-	var opt = Result[V]{
-		err: errors.New(errorMessage),
-	}
+func NewResultError[V any](errorMessageParts ...string) Result[V] {
+	var opt = Result[V]{err: errors.New(StrCat(errorMessageParts...))}
+	return opt
+}
+
+func NewResultFromError[V any](err error) Result[V] {
+	var opt = Result[V]{err: err}
 	return opt
 }
 
@@ -32,46 +27,41 @@ func (r Result[T]) Ok() bool {
 	return r.err == nil
 }
 
-func (r Result[T]) IsEmpty() bool {
-	return !r.Ok()
-}
-
-func (r Result[T]) Length() int {
-	if r.IsEmpty() {
-		return 0
-	}
-	return 1
-}
-
 func (r Result[T]) Value() T {
-	if r.IsEmpty() {
+	if !r.Ok() {
 		Throw(r.err.Error())
 	}
 	return r.data
 }
 
+func (r Result[T]) ValueOrThrow(errorMessage string) T {
+	if !r.Ok() {
+		ThrowIfError(errors.New(errorMessage))
+	}
+	return r.data
+}
+
 func (r Result[T]) ValueOr(defaultValue T) T {
-	if r.IsEmpty() {
+	if !r.Ok() {
 		return defaultValue
 	}
 	return r.data
 }
 
-func (r Result[T]) ValueOrDefault() (value T) {
+func (r Result[T]) ValueOrInit() (value T) {
 	return r.ValueOr(value)
+}
+
+func (r Result[T]) ValueIsOptional() Optional[T] {
+	if !r.Ok() {
+		return NewOptional[T]()
+	}
+	return NewOptionalFrom(r.Value())
 }
 
 func (r Result[T]) Error() string {
 	if r.Ok() {
 		Throw("Fatal error: accessing empty error value from result")
 	}
-	return ""
-}
-
-func (r Result[T]) NewIterator() Iterator[int, T] {
-	if r.IsEmpty() {
-		return NewArray[T]().NewIterator()
-	} else {
-		return NewArrayFrom(r.data).NewIterator()
-	}
+	return r.err.Error()
 }
