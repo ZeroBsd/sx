@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: 0BSD
 package sx
 
 var _ Container = hashMap[string, int]{}

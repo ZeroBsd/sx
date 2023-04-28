@@ -1,5 +1,5 @@
 # sx - Simple Extensions for the Go Programming Language
-![License: 0BSD](https://img.shields.io/badge/License-0BSD-brightgreen "License: 0BSD") ![StaticCheck: 0](https://img.shields.io/badge/StaticCheck-0%20Warnings-brightgreen "StaticCheck: 0 Warnings") ![StaticCheck: 0](https://goreportcard.com/badge/github.com/ZeroBsd/sx "StaticCheck: 0 Warnings") ![TestCoverage: 100%](https://img.shields.io/badge/TestCoverage-100%25-brightgreen "TestCoverage: 100%")
+![](https://img.shields.io/badge/License-0BSD-brightgreen "License: 0BSD") ![](https://img.shields.io/badge/StaticCheck-0%20Warnings-brightgreen "StaticCheck: 0 Warnings") [![Go Report Card](https://goreportcard.com/badge/github.com/ZeroBsd/sx)](https://goreportcard.com/report/github.com/ZeroBsd/sx) ![](https://img.shields.io/badge/TestCoverage-100%25-brightgreen "TestCoverage: 100%")
 
 ---
 License
