@@ -1,9 +1,9 @@
-# sx - Simple Extensions for the Go Programming Language
+# sx - Simple Extensions for Go
 ![](https://img.shields.io/badge/License-0BSD-brightgreen "License: 0BSD") ![](https://img.shields.io/badge/StaticCheck-0%20Warnings-brightgreen "StaticCheck: 0 Warnings") [![Go Report Card](https://goreportcard.com/badge/github.com/ZeroBsd/sx)](https://goreportcard.com/report/github.com/ZeroBsd/sx) ![](https://img.shields.io/badge/TestCoverage-100%25-brightgreen "TestCoverage: 100%")
 
 ---
-License
-===
+## License
+
 
 Everything in this repository is provided under the [__0BSD__](https://github.com/ZeroBsd/sx/blob/main/LICENSE) License (see: [spdx.org](https://spdx.org/licenses/0BSD.html)), a public domain equivalent license\
 (when in doubt, please contact your lawyer)
@@ -13,15 +13,14 @@ Everything in this repository is provided under the [__0BSD__](https://github.co
 $~$
 
 
-About
-===
->Unfortunately, the Go standard library does not provide generic types.\
-So I wrote this library to make my life easier - and maybe yours, too.\
-I hope you like it 🙂
+## About
+
+>Unfortunately, the Go standard library does not provide generic types. \
+I wrote this library to make my life easier - and maybe yours, too 🙂
 
 $~$
 
-__Features:__
+#### Features:
 * Standard Containers (Array, HashMap, Optional)
 * Iterators (extensible)
 * Result Type (a bit 'rusticious' - similar to std::expected)
@@ -30,7 +29,7 @@ __Features:__
 
 $~$
 
-__Quality:__
+#### Quality:
 * high quality library with 100% test coverage
 * dependency free and non-invasive
 * minimalistic, but 'all-in-one' solution
@@ -38,16 +37,18 @@ __Quality:__
 * _0BSD_ licence, so you don't have to give credit or carry around copyright notices
 * No legacy stuff - you need an up-to-date Go version (1.20+)
 
-
 $~$
 
+#### Build / Test:
+You can (and probably should) verify the test coverage yourself by running the following commands. \
+Please note that this only works on Windows at the moment, because otherwise some branches will not be taken.
+```
+go test -coverprofile .test.coverage; go tool cover -html .test.coverage; del .test.coverage;
+```
 ---
 $~$
 
-Usage / Examples
-===
-
-$~$
+## Usage / Examples
 
 ### Basic Usage
 ```go
