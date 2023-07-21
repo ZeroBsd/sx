@@ -2,7 +2,6 @@
 package sx_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/ZeroBsd/sx"
@@ -66,6 +65,19 @@ func (t testImpl) makeInterfaceCall() {
 	return
 }
 
+func TestMapalues(t *testing.T) {
+	var before = sx.NewArrayFrom("A", "B")
+	var after = sx.MapValues(before.NewIterator(), func(k int, v string) sx.Optional[int] {
+		if v == "A" {
+			return sx.NewOptionalFrom(1)
+		}
+		return sx.NewOptional[int]()
+	})
+	if after.Length() != 1 || after.Get(0).Value() != 1 {
+		t.FailNow()
+	}
+}
+
 func TestArrayTypeCast(t *testing.T) {
 	var concreteArray = sx.NewArrayFrom(testImpl{}, testImpl{})
 	var abstractArray = sx.NewArray[any]()
@@ -92,7 +104,7 @@ func TestFirstFindWhere(t *testing.T) {
 		var r = sx.FindFirstWhere[int, int](arr, func(key int, value int) bool {
 			return value == 5
 		})
-		if r.Ok() {
+		if !r.IsEmpty() {
 			t.Log("Error optional should be empty, but was [key: ", r.Value().Key, "; value: ", r.Value().Value, "]")
 			t.FailNow()
 		}
@@ -164,138 +176,11 @@ func TestRemoveAll(t *testing.T) {
 	}
 }
 
-func TestReflectFunctionName(t *testing.T) {
-	if reflectedCallerFuncName := subFunc(); reflectedCallerFuncName != "github.com/ZeroBsd/sx_test.TestReflectFunctionName" {
-		t.FailNow()
-	}
-	if reflectedFunctionName := sx.ReflectFunctionName(-1); reflectedFunctionName != "github.com/ZeroBsd/sx.ReflectFunctionName" {
-		t.FailNow()
-	}
-	var lambdaFunc = func() string {
-		return sx.ReflectFunctionName(1)
-	}
-	if reflectedCallerNameFromLambda := lambdaFunc(); reflectedCallerNameFromLambda != "github.com/ZeroBsd/sx_test.TestReflectFunctionName" {
-		t.FailNow()
-	}
-}
-func subFunc() string {
-	return sx.ReflectFunctionName(1)
+type JsonTestStruct struct {
+	X int
+	Y string
 }
 
-func TestReflectTypeName(t *testing.T) {
-	{
-		var instance int = 42
-		var typeName1 = sx.ReflectType(instance).Name()
-		var typeName2 = sx.ReflectTypeName(instance)
-		if typeName1 != "int" || typeName2 != typeName1 {
-			t.FailNow()
-		}
-	}
-	{
-		var temp int = 42
-		var instance *int = &temp
-		var typeName1 = sx.ReflectType(instance).Name()
-		var typeName2 = sx.ReflectTypeName(instance)
-		if typeName1 != "" || typeName2 != "*int" {
-			t.FailNow()
-		}
-	}
-	{
-		var instance [2]int = [...]int{42, 4711}
-		var typeName1 = sx.ReflectType(instance).Name()
-		var typeName2 = sx.ReflectTypeName(instance)
-		if typeName1 != "" || typeName2 != "[2]int" {
-			t.FailNow()
-		}
-	}
-	{
-		var instance []int = []int{42}
-		var typeName1 = sx.ReflectType(instance).Name()
-		var typeName2 = sx.ReflectTypeName(instance)
-		if typeName1 != "" || typeName2 != "[]int" {
-			t.FailNow()
-		}
-	}
-	{
-		var instance map[int]string = map[int]string{42: "some string"}
-		var typeName1 = sx.ReflectType(instance).Name()
-		var typeName2 = sx.ReflectTypeName(instance)
-		if typeName1 != "" || typeName2 != "map[int]string" {
-			t.FailNow()
-		}
-	}
-	{
-		var temp = "some string"
-		var instance map[int][]*string = map[int][]*string{42: {&temp}}
-		var typeName1 = sx.ReflectType(instance).Name()
-		var typeName2 = sx.ReflectTypeName(instance)
-		if typeName1 != "" || typeName2 != "map[int][]*string" {
-			t.FailNow()
-		}
-	}
-	{
-		var instance error = errors.New("some error")
-		var typeName1 = sx.ReflectType(instance).Name()
-		var typeName2 = sx.ReflectTypeName(instance)
-		if typeName1 != "" || typeName2 != "*errorString" {
-			// this might fail when the internal implementation in Go changes!
-			t.FailNow()
-		}
-	}
-}
-
-func TestReflectType(t *testing.T) {
-	if reflectedTypeName := sx.ReflectType[int]().Name(); reflectedTypeName != "int" {
-		t.FailNow()
-	}
-
-	if reflectedTypeName := sx.ReflectType[error](nil).Name(); reflectedTypeName != "error" {
-		t.FailNow()
-	}
-
-	if reflectedTypeName := sx.ReflectType(errors.New("some error")).Name(); reflectedTypeName != "" {
-		// there is no name because the type is a pointer (more precisely: *errorString)
-		t.FailNow()
-	}
-
-	if reflectedTypeName := sx.ReflectType((error)(MyError{}), errors.New("some error")).Name(); reflectedTypeName != "error" {
-		// there is a name because we passeed multiple arguments, all of them are of interface 'error'
-		t.FailNow()
-	}
-
-	if reflectedTypeName := reflectWithinGenericFuncWithBasicType(42); reflectedTypeName != "int" {
-		t.FailNow()
-	}
-
-	if reflectedTypeName := reflectWithinGenericFuncWithIterfaceType(42); reflectedTypeName != "int" {
-		t.FailNow()
-	}
-
-	var mye = MyError{}
-	if reflectedTypeName := sx.ReflectType(mye).Name(); reflectedTypeName != "MyError" {
-		t.FailNow()
-	}
-	var err error = MyError{}
-	if reflectedTypeName := sx.ReflectType(err).Name(); reflectedTypeName != "MyError" {
-		t.FailNow()
-	}
-
-	err = nil
-	if reflectedTypeName := sx.ReflectType(err).Name(); reflectedTypeName != "error" {
-		t.FailNow()
-	}
-}
-
-type MyError struct{}
-
-func (e MyError) Error() string {
-	return "MyError"
-}
-func reflectWithinGenericFuncWithBasicType[T int](x T) string {
-	var name = sx.ReflectType[T]().Name()
-	return name
-}
-func reflectWithinGenericFuncWithIterfaceType[T any](x T) string {
-	var name = sx.ReflectType[T]().Name()
-	return name
+type JsonRecursiveTestStruct struct {
+	R *JsonRecursiveTestStruct
 }

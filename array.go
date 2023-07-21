@@ -1,119 +1,142 @@
 // SPDX-License-Identifier: 0BSD
 package sx
 
-var _ Container = &array[int]{}
-var _ Array[int] = &array[int]{}
+var _ Container = &arrayImpl[int]{}
+var _ Array[int] = &arrayImpl[int]{}
 var _ Array[int] = NewArray[int]()
-var _ Map[int, int] = &array[int]{}
-var _ Iterable[int, int] = &array[int]{}
-var _ Iterator[int, int] = array[int]{}.NewIterator()
+var _ Map[int, int] = &arrayImpl[int]{}
+var _ Iterable[int, int] = &arrayImpl[int]{}
+var _ Iterator[int, int] = arrayImpl[int]{}.NewIterator()
+var _ Iterator[int, string] = &SliceIterator[int, string]{}
 
-// array is the main implementation for Array and Stack interfaces
-type array[V any] struct {
-	slice []V
-}
+type arrayImpl[V any] []V
 
-func (v array[V]) Length() int        { return len(v.slice) }
-func (v array[V]) IsEmpty() bool      { return v.Length() == 0 }
-func (v array[V]) Has(index int) bool { return index < v.Length() }
-func (v *array[V]) Push(value ...V)   { v.slice = append(v.slice, value...) }
-func (v *array[V]) PushAll(arr Array[V]) {
-	if cap(v.slice) == 0 {
-		*v = array[V]{slice: make([]V, 0, arr.Length())}
+func NewArray[V any](capacity ...int) Array[V] {
+	var v arrayImpl[V]
+	if len(capacity) > 0 {
+		v = arrayImpl[V](make([]V, 0, int(capacity[0])))
+	} else {
+		v = arrayImpl[V](make([]V, 0))
 	}
-	v.Push(arr.Slice()...)
+	return &v
 }
 
-func (v array[V]) Peek() Result[V] {
+func NewStack[V any](capacity ...int) Stack[V] {
+	return NewArray[V](capacity...)
+}
+
+func NewArrayFrom[V any](items ...V) Array[V] {
+	var a = NewArray[V](len(items))
+	a.Push(items...)
+	return a
+}
+
+func (v arrayImpl[V]) Length() int        { return len(v) }
+func (v arrayImpl[V]) IsEmpty() bool      { return v.Length() == 0 }
+func (v arrayImpl[V]) Has(index int) bool { return index < v.Length() }
+func (v *arrayImpl[V]) Push(value ...V)   { (*v) = append(*v, value...) }
+
+func (v *arrayImpl[V]) PushArray(arr Array[V]) {
+	if cap(*v) == 0 {
+		(*v) = arrayImpl[V](make([]V, 0, v.Length()))
+	}
+	(*v) = append(*v, arr.SubSlice()...)
+}
+
+func (v arrayImpl[V]) Peek() Result[V] {
 	if v.IsEmpty() {
 		return NewResultError[V]("Fatal error: trying to peek empty stack")
 	}
-	return NewResultFrom(v.slice[v.Length()-1])
+	return NewResultFrom(v[v.Length()-1])
 }
 
-func (v *array[V]) Pop() Result[V] {
+func (v *arrayImpl[V]) Pop() Result[V] {
 	var temp = v.Peek()
 	if temp.Ok() {
-		v.slice = v.slice[:v.Length()-1]
+		(*v) = (*v)[:v.Length()-1]
 	}
 	return temp
 }
 
-func (v array[V]) Get(key int) Result[V] {
+func (v arrayImpl[V]) Get(key int) Result[V] {
 	if !v.Has(key) {
 		return NewResultError[V]("Fatal error: Index out of bounds")
 	}
-	return NewResultFrom(v.slice[key])
+	return NewResultFrom(v[key])
 }
 
-func (v array[V]) GetOrDefault(key int) (value V) {
-	if v.Has(key) {
-		value = v.slice[key]
-	}
-	return value
-}
-
-func (v *array[V]) Put(key int, value V) bool {
+func (v arrayImpl[V]) Put(key int, value V) bool {
 	if !v.Has(key) {
 		return false
 	}
-	v.slice[key] = value
+	v[key] = value
 	return true
 }
 
-func (v *array[V]) Drop(key int) bool {
+func (v *arrayImpl[V]) Drop(key int) bool {
 	if key == 0 {
-		v.slice = v.slice[1:]
+		(*v) = (*v)[1:]
 	} else if key == v.Length()-1 {
-		v.slice = v.slice[:v.Length()-1]
+		(*v) = (*v)[:v.Length()-1]
 	} else if key < v.Length()-1 {
-		v.slice = append(v.slice[0:int(key)], v.slice[int(key+1):]...)
+		(*v) = append((*v)[0:int(key)], (*v)[int(key+1):]...)
 	} else {
 		return false
 	}
 	return true
 }
 
-func (v *array[V]) Compact() {
-	var newVec array[V]
-	newVec.Push(v.slice...)
-	*v = newVec
+func (v *arrayImpl[V]) Compact() {
+	var newVec arrayImpl[V]
+	newVec.Push((*v)...)
+	(*v) = newVec
 }
 
-func (v array[V]) Slice(fromIndexToIndex ...int) []V {
+func (v arrayImpl[V]) SubSlice(fromIndexToIndex ...int) []V {
 	switch len(fromIndexToIndex) {
 	default:
-		return v.slice
+		return v
 	case 1:
-		return v.slice[fromIndexToIndex[0]:]
+		return v[fromIndexToIndex[0]:]
 	case 2:
-		return v.slice[fromIndexToIndex[0]:fromIndexToIndex[1]]
+		return v[fromIndexToIndex[0]:fromIndexToIndex[1]]
 	}
 }
 
-func (v array[V]) NewIterator() Iterator[int, V] {
-	var it = &ArrayIterator[int, V]{}
-	it.vec = &v
-	return it
+func (v arrayImpl[V]) NewIterator() Iterator[int, V] {
+	var it = NewSliceIterator(v)
+	return &it
 }
 
-type ArrayIterator[K int, V any] struct {
-	vec   *array[V]
+type SliceIterator[K int, V any] struct {
+	slice []V
 	index int
 }
 
-func (it ArrayIterator[int, V]) Ok() bool {
-	return it.vec.Has(it.index)
+func NewSliceIterator[V any](slice []V) SliceIterator[int, V] {
+	var index = 0
+	return SliceIterator[int, V]{
+		slice: slice,
+		index: index,
+	}
 }
 
-func (it ArrayIterator[int, V]) Key() int {
+func (it SliceIterator[int, V]) Ok() bool {
+	return it.index < len(it.slice)
+}
+
+func (it SliceIterator[int, V]) Key() int {
 	return int(it.index)
 }
 
-func (it ArrayIterator[int, V]) Value() V {
-	return it.vec.GetOrDefault(it.index)
+func (it SliceIterator[int, V]) Value() V {
+	return it.slice[it.index]
 }
 
-func (it *ArrayIterator[int, V]) Next() {
+func (it SliceIterator[int, V]) SetValue(v V) {
+	it.slice[it.index] = v
+}
+
+func (it *SliceIterator[int, V]) Next() {
 	it.index++
 }

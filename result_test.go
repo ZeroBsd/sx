@@ -71,7 +71,7 @@ func TestValueisOptional(t *testing.T) {
 	{
 		var r = sx.NewResultFrom(2)
 		var opt = r.ValueIsOptional()
-		if !opt.Ok() {
+		if opt.IsEmpty() {
 			t.FailNow()
 		}
 	}

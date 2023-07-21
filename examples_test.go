@@ -25,8 +25,8 @@ func base() {
 func arraysMaps() {
 	var array1 = sx.NewArray[int]()       // create dynamic array using a generic value type
 	var array2 = sx.NewArrayFrom(1, 2, 3) // same as above, but infer the value type from the values
-	array1.PushAll(array2)                // add all items from array2 to array1
-	array1.Push(array2.Slice()...)        // same
+	array1.PushArray(array2)              // add all items from array2 to array1
+	array1.Push(array2.SubSlice()...)     // same
 	array1.Push(4)                        // add another value
 
 	// iterate through all key/value pairs. This works for every array and map
@@ -69,7 +69,7 @@ func playThrowAndCatch(throws bool) (result sx.Result[int]) {
 	})
 
 	// throws, if the input variable (bool) was true. The text will be encapsulated in an error
-	sx.ThrowIf(throws, "This is throws as an error if throws is true. Internally, this panics with an error")
+	sx.ThrowIf(throws, "This is thrown as an error if throws is true. Internally, this panics with an error")
 
 	// if the above didn't throw, we return a valid number. In this case, the type argument is inferred
 	return sx.NewResultFrom(42)

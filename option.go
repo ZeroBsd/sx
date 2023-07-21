@@ -28,12 +28,8 @@ type Optional[T any] struct {
 	valid bool
 }
 
-func (opt Optional[T]) Ok() bool {
-	return opt.valid
-}
-
 func (opt Optional[T]) IsEmpty() bool {
-	return !opt.Ok()
+	return !opt.valid
 }
 
 func (opt Optional[T]) Length() int {
@@ -51,7 +47,7 @@ func (opt Optional[T]) Value() T {
 }
 
 func (opt Optional[T]) ValueOr(defaultValue T) T {
-	if opt.Ok() {
+	if !opt.IsEmpty() {
 		return opt.data
 	}
 	return defaultValue
@@ -62,7 +58,7 @@ func (opt Optional[T]) ValueOrDefault() (value T) {
 }
 
 func (opt Optional[T]) NewIterator() Iterator[int, T] {
-	if opt.Ok() {
+	if !opt.IsEmpty() {
 		return NewArrayFrom(opt.data).NewIterator()
 	}
 	return NewArray[T]().NewIterator()

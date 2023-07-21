@@ -2,6 +2,7 @@
 package sx_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/ZeroBsd/sx"
@@ -30,10 +31,10 @@ func TestHashMap(t *testing.T) {
 		"b": 0x1011,
 	})
 	if m.IsEmpty() {
-		t.Fail()
+		t.FailNow()
 	}
 	if len(refMap) != m.Length() || len(refMap) != hm.Length() || len(refMap) != gm.Length() || len(refMap) != fm.Length() {
-		t.Fail()
+		t.FailNow()
 	}
 	if m.Get("b").Value() != refMap["b"] {
 		t.FailNow()
@@ -57,22 +58,6 @@ func TestHashMap(t *testing.T) {
 	}
 }
 
-func TestMapSet(t *testing.T) {
-	var set = sx.NewSetFrom("a", "b", "c")
-	if set.Get("b").Value() != true {
-		t.FailNow()
-	}
-	if set.Get("d").Ok() {
-		t.FailNow()
-	}
-	if !set.Drop("a") {
-		t.FailNow()
-	}
-	if set.Drop("e") {
-		t.FailNow()
-	}
-}
-
 func TestIterationWithDeletion(t *testing.T) {
 	{
 		var m = sx.NewMap[string, int]()
@@ -88,6 +73,58 @@ func TestIterationWithDeletion(t *testing.T) {
 			}
 		}
 		if sx.ContainsValue[int, string](foundKeys, "c") || !sx.ContainsValue[int, string](foundKeys, "a") || !sx.ContainsValue[int, string](foundKeys, "b") || !sx.ContainsValue[int, string](foundKeys, "d") {
+			t.FailNow()
+		}
+	}
+}
+
+func TestSet(t *testing.T) {
+	{
+		{
+			var set = sx.NewSet[string]()
+			set.Put("a", struct{}{})
+			set.Put("b", struct{}{})
+			if !set.Has("a") {
+				t.FailNow()
+			}
+			if !set.Has("b") {
+				t.FailNow()
+			}
+			if set.Has("c") {
+				t.FailNow()
+			}
+		}
+		{
+			var set = sx.NewSetFrom("a", "b")
+			if !set.Has("a") {
+				t.FailNow()
+			}
+			if !set.Has("b") {
+				t.FailNow()
+			}
+			if set.Has("c") {
+				t.FailNow()
+			}
+		}
+		{
+			var set = sx.NewSetFrom("a", "b", "c")
+			if set.Get("b").Value() != struct{}{} {
+				t.FailNow()
+			}
+			if set.Get("d").Ok() {
+				t.FailNow()
+			}
+			if !set.Drop("a") {
+				t.FailNow()
+			}
+			if set.Drop("e") {
+				t.FailNow()
+			}
+		}
+
+		var sizeOfEmptyStruct = reflect.TypeOf(struct{}{}).Size()
+		var sizeOfBool = reflect.TypeOf(true).Size()
+		if sizeOfEmptyStruct >= sizeOfBool {
 			t.FailNow()
 		}
 	}

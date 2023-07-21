@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: 0BSD
 package sx
 
-var _ Container = hashMap[string, int]{}
+var _ Container = hashMapImpl[string, int]{}
 var _ Map[string, int] = NewHashMap[string, int]()
-var _ Map[string, int] = hashMap[string, int]{}
-var _ Iterable[string, int] = hashMap[string, int]{}
-var _ Iterator[string, int] = hashMap[string, int]{}.NewIterator()
+var _ Map[string, int] = hashMapImpl[string, int]{}
+var _ Iterable[string, int] = hashMapImpl[string, int]{}
+var _ Iterator[string, int] = hashMapImpl[string, int]{}.NewIterator()
 
 func NewMap[K comparable, V any]() Map[K, V]                   { return NewHashMap[K, V]() }
 func NewMapFrom[K comparable, V any](values map[K]V) Map[K, V] { return NewHashMapFrom(values) }
 
 func NewHashMap[K comparable, V any]() Map[K, V] {
-	var m hashMap[K, V]
-	m.data = make(map[K]V)
+	var m hashMapImpl[K, V]
+	m.Map = make(map[K]V)
 	return &m
 }
 
@@ -24,104 +24,92 @@ func NewHashMapFrom[K comparable, V any](values map[K]V) Map[K, V] {
 	return m
 }
 
-func NewSetFrom[K comparable](values ...K) Map[K, bool] {
-	var hs = NewHashMap[K, bool]()
+func NewSet[K comparable]() Map[K, struct{}] { return NewSetFrom[K]() }
+func NewSetFrom[K comparable](values ...K) Map[K, struct{}] {
+	var hs = NewHashMap[K, struct{}]()
 	for _, v := range values {
-		hs.Put(v, true)
+		hs.Put(v, struct{}{})
 	}
 	return hs
 }
 
-type hashMap[K comparable, V any] struct {
-	data map[K]V
+type hashMapImpl[K comparable, V any] struct {
+	Map map[K]V // reference type; needs to be public for reflection access (go maps can be iterated via reflection)
 }
 
-func (m hashMap[K, V]) Length() int {
-	return len(m.data)
+func (m hashMapImpl[K, V]) Length() int {
+	return len(m.Map)
 }
 
-func (m hashMap[K, V]) IsEmpty() bool {
+func (m hashMapImpl[K, V]) IsEmpty() bool {
 	return m.Length() == 0
 }
 
-func (m hashMap[K, V]) Has(key K) bool {
-	var _, ok = m.data[key]
+func (m hashMapImpl[K, V]) Has(key K) bool {
+	var _, ok = m.Map[key]
 	return ok
 }
 
-func (m hashMap[K, V]) Get(key K) Result[V] {
-	var value, ok = m.data[key]
+func (m hashMapImpl[K, V]) Get(key K) Result[V] {
+	var value, ok = m.Map[key]
 	if !ok {
 		return NewResultError[V]("Fatal error: Key does not exist")
 	}
 	return NewResultFrom(value)
 }
 
-func (m hashMap[K, V]) GetOrDefault(key K) (value V) {
-	if m.Has(key) {
-		value = m.data[key]
-	}
-	return value
-}
-
-func (m hashMap[K, V]) Put(key K, value V) bool {
-	m.data[key] = value
+func (m hashMapImpl[K, V]) Put(key K, value V) bool {
+	m.Map[key] = value
 	return true
 }
 
-func (m hashMap[K, V]) Drop(key K) bool {
+func (m hashMapImpl[K, V]) Drop(key K) bool {
 	if m.Has(key) {
-		delete(m.data, key)
+		delete(m.Map, key)
 		return true
 	}
 	return false
 }
 
-func (m hashMap[K, V]) NewIterator() Iterator[K, V] {
-	var it = &HashMapIterator[K, V]{}
-	if m.Length() == 0 {
-		return it
+func (m hashMapImpl[K, V]) NewIterator() Iterator[K, V] {
+	return NewMapIterator(m.Map)
+}
+
+type mapIterator[K comparable, V any] struct {
+	Map         map[K]V
+	keyIterator Iterator[int, K]
+}
+
+func NewMapIterator[K comparable, V any](m map[K]V) Iterator[K, V] {
+	var keys = NewArray[K](len(m))
+	for k := range m {
+		keys.Push(k)
 	}
-	it.mp = &m
-	it.keys = NewArray[K](len(m.data))
-	it.currentKeyIndex = 0
-	var i = 0
-	for k := range m.data {
-		it.keys.Push(k)
-		i++
+	var it = &mapIterator[K, V]{
+		Map:         m,
+		keyIterator: keys.NewIterator(),
 	}
-	it.current.Key = it.keys.Get(0).ValueOrInit()
-	it.current.Value = it.mp.GetOrDefault(it.current.Key)
 	return it
 }
 
-type HashMapIterator[K comparable, V any] struct {
-	mp              *hashMap[K, V]
-	keys            Array[K]
-	currentKeyIndex int
-	current         Pair[K, V]
-}
-
-func (it HashMapIterator[K, V]) Ok() bool {
-	return it.currentKeyIndex < it.keys.Length() && it.mp.Has(it.current.Key)
-}
-
-func (it HashMapIterator[K, V]) Key() K {
-	return it.current.Key
-}
-func (it HashMapIterator[K, V]) Value() V {
-	return it.current.Value
-}
-
-func (it *HashMapIterator[K, V]) Next() {
-	it.currentKeyIndex++
-	var nextKey = it.keys.Get(it.currentKeyIndex)
-	// if the nextKey is not valid, it has been removed during iteration
-	// this is supported - so we try and find the next valid key, until our key-array runs out of items
-	for nextKey.Ok() && it.currentKeyIndex < it.keys.Length() && !it.mp.Has(nextKey.Value()) {
-		it.currentKeyIndex++
-		nextKey = it.keys.Get(it.currentKeyIndex)
+func (it mapIterator[K, V]) Ok() bool {
+	for kit := it.keyIterator; kit.Ok(); kit.Next() {
+		var _, ok = it.Map[kit.Value()]
+		if ok {
+			return ok
+		}
 	}
-	it.current.Key = nextKey.ValueOrInit()
-	it.current.Value = it.mp.GetOrDefault(it.current.Key)
+	return false
+}
+
+func (it mapIterator[K, V]) Key() K {
+	return it.keyIterator.Value()
+}
+
+func (it mapIterator[K, V]) Value() V {
+	return it.Map[it.keyIterator.Value()]
+}
+
+func (it *mapIterator[K, V]) Next() {
+	it.keyIterator.Next()
 }
